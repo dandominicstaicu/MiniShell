@@ -6,6 +6,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "cmd.h"
 #include "utils.h"
@@ -18,9 +21,23 @@
  */
 static bool shell_cd(word_t *dir)
 {
-	/* TODO: Execute cd. */
+	/* Execute cd. */
+	char *path = get_word(dir);
+	int ret_val = -1;
 
-	return 0;
+	if (path) {
+		ret_val = chdir(path);
+	} else {
+		char *home = getenv("HOME");
+
+		if (home) {
+			ret_val = chdir(home);
+		}
+	}
+
+	free(path);
+
+	return ret_val;
 }
 
 /**
@@ -28,9 +45,9 @@ static bool shell_cd(word_t *dir)
  */
 static int shell_exit(void)
 {
-	/* TODO: Execute exit/quit. */
+	/* Execute exit/quit. */
 
-	return 0; /* TODO: Replace with actual exit code. */
+	return SHELL_EXIT; /* Replace with actual exit code. */
 }
 
 /**
@@ -64,9 +81,27 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 		command_t *father)
 {
-	/* TODO: Execute cmd1 and cmd2 simultaneously. */
+	/* Execute cmd1 and cmd2 simultaneously. */
+	pid_t pid = fork();
 
-	return true; /* TODO: Replace with actual exit status. */
+	if (pid < 0) {
+		return -1;
+	} else if (pid == 0) {
+		int ret_val = parse_command(cmd1, level + 1, cmd1->up);
+
+		exit(ret_val);
+	}
+
+	parse_command(cmd2, level + 1, father);
+
+	int status;
+
+	waitpid(pid, &status, 0); /* wait for the command to finish*/
+	if (WIFEXITED(status)) {
+		return WEXITSTATUS(status);
+	}
+
+	return true;
 }
 
 /**
@@ -85,44 +120,63 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
  */
 int parse_command(command_t *c, int level, command_t *father)
 {
-	/* TODO: sanity checks */
+	/* sanity checks */
+	if (!c || level < 0)
+		return SHELL_EXIT;
 
 	if (c->op == OP_NONE) {
-		/* TODO: Execute a simple command. */
+		/* Execute a simple command. */
 
-		return 0; /* TODO: Replace with actual exit code of command. */
+		return parse_simple(c->scmd, level + 1, c); /* Replace with actual exit code of command. */
 	}
+
+	int ret_val = 0;
 
 	switch (c->op) {
 	case OP_SEQUENTIAL:
-		/* TODO: Execute the commands one after the other. */
+		/* Execute the commands one after the other. */
+		ret_val = parse_command(c->cmd1, level + 1, c);
+		ret_val |= parse_command(c->cmd2, level + 1, c);
+
 		break;
 
 	case OP_PARALLEL:
-		/* TODO: Execute the commands simultaneously. */
+		/* Execute the commands simultaneously. */
+		ret_val = run_in_parallel(c->cmd1, c->cmd2, level + 1, c);
+
 		break;
 
 	case OP_CONDITIONAL_NZERO:
-		/* TODO: Execute the second command only if the first one
+		/* Execute the second command only if the first one
 		 * returns non zero.
 		 */
+		ret_val = parse_command(c->cmd1, level + 1, c);
+		if (ret_val != 0)
+			ret_val = parse_command(c->cmd2, level + 1, c);
+
 		break;
 
 	case OP_CONDITIONAL_ZERO:
-		/* TODO: Execute the second command only if the first one
+		/* Execute the second command only if the first one
 		 * returns zero.
 		 */
+		ret_val = parse_command(c->cmd1, level + 1, c);
+		if (ret_val == 0)
+			ret_val = parse_command(c->cmd2, level + 1, c);
+
 		break;
 
 	case OP_PIPE:
-		/* TODO: Redirect the output of the first command to the
+		/* Redirect the output of the first command to the
 		 * input of the second.
 		 */
+		ret_val = run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
+
 		break;
 
 	default:
 		return SHELL_EXIT;
 	}
 
-	return 0; /* TODO: Replace with actual exit code of command. */
+	return ret_val; /* Actual exit code of command. */
 }
