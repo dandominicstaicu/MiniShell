@@ -25,15 +25,14 @@ static bool shell_cd(word_t *dir)
 	char *path = dir ? get_word(dir) : getenv("HOME");
 
 	if (chdir(path) != 0) {
-		if (dir) {
+		if (dir)
 			free(path);
-		}
+
 		return false;
 	}
 
-	if (dir) {
+	if (dir)
 		free(path);
-	}
 
 	return true;
 }
@@ -51,37 +50,39 @@ static int shell_exit(void)
 static void redirect_stdio_to_file(simple_command_t *s, char *verb, int stdio_type)
 {
 	// Determine file and flags based on stdioType
-    char *file = get_word(stdio_type == 1 ? s->out : s->err);
-    int flags = (s->io_flags & (stdio_type == 1 ? IO_OUT_APPEND : IO_ERR_APPEND)) 
-                ? O_WRONLY | O_APPEND | O_CREAT 
-                : O_WRONLY | O_TRUNC | O_CREAT;
+	char *file = get_word(stdio_type == 1 ? s->out : s->err);
+	int flags = (s->io_flags & (stdio_type == 1 ? IO_OUT_APPEND : IO_ERR_APPEND))
+				? O_WRONLY | O_APPEND | O_CREAT
+				: O_WRONLY | O_TRUNC | O_CREAT;
 
-    // Open file descriptor
-    int fd = open(file, flags, 0644);
-    if (fd == -1) {
-        perror("Failed to open file for redirection");
-        free(file);
-        free(verb);
-        exit(EXIT_FAILURE);
-    }
+	// Open file descriptor
+	int fd = open(file, flags, 0644);
 
-    // Redirect either STDOUT or STDERR
-    if (dup2(fd, stdio_type == 1 ? STDOUT_FILENO : STDERR_FILENO) == -1) {
-        perror("Failed to duplicate file descriptor for redirection");
-        close(fd);
-        free(file);
-        exit(EXIT_FAILURE);
-    }
+	if (fd == -1) {
+		perror("Failed to open file for redirection");
+		free(file);
+		free(verb);
+		exit(EXIT_FAILURE);
+	}
 
-    close(fd);
-    free(file);
+	// Redirect either STDOUT or STDERR
+	if (dup2(fd, stdio_type == 1 ? STDOUT_FILENO : STDERR_FILENO) == -1) {
+		perror("Failed to duplicate file descriptor for redirection");
+		close(fd);
+		free(file);
+		exit(EXIT_FAILURE);
+	}
+
+	close(fd);
+	free(file);
 }
 
-static void redirect_both_stdio(simple_command_t *s, char *verb) {
+static void redirect_both_stdio(simple_command_t *s, char *verb)
+{
 	char *filename = get_word(s->io_flags & IO_OUT_APPEND ? s->out : s->err);
-    int file_open_mode = (s->io_flags & IO_OUT_APPEND) ? O_WRONLY | O_APPEND | O_CREAT : O_WRONLY | O_TRUNC | O_CREAT;
-
+	int file_open_mode = (s->io_flags & IO_OUT_APPEND) ? O_WRONLY | O_APPEND | O_CREAT : O_WRONLY | O_TRUNC | O_CREAT;
 	int fd = open(filename, file_open_mode, 0644);
+
 	if (fd < 0) {
 		perror("failed to open file for redirection");
 		free(filename);
@@ -106,6 +107,7 @@ static void create_or_truncate_file(word_t *redirect)
 	if (redirect) {
 		char *filename = get_word(redirect);
 		int fd = open(filename, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+
 		free(filename);
 		close(fd);
 	}
@@ -157,7 +159,6 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		return -1;
 
 	/* If builtin command, execute the command. */
-
 	char *verb = get_word(s->verb);
 
 	if (strcmp(verb, "cd") == 0 || strcmp(verb, "exit") == 0 ||
@@ -165,11 +166,10 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		return builtin_command(s, verb);
 	}
 
-	/* 
+	/*
 	 * If variable assignment, execute the assignment and return
 	 * the exit status.
 	 */
-
 	if (strchr(verb, '=')) {
 		free(verb);
 		return environment_assign(s);
@@ -190,12 +190,13 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		free(verb);
 		return child_pid;
 	}
-	
+
 	if (child_pid > 0) {
 		int status;
-        waitpid(child_pid, &status, 0);
-        free(verb);
-        return WIFEXITED(status) ? WEXITSTATUS(status) : 0;
+
+		waitpid(child_pid, &status, 0);
+		free(verb);
+		return WIFEXITED(status) ? WEXITSTATUS(status) : 0;
 	}
 
 	int argc = 0;
@@ -203,24 +204,25 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 
 	// Handle input redirection if specified
 	if (s->in) {
-	    char *input_file = get_word(s->in);
-	    int input_fd = open(input_file, O_RDONLY);
-	    if (input_fd < 0) {
-	        perror("Failed to open input file");
-	        free(input_file);
-	        free(verb);
-	        exit(EXIT_FAILURE);
-	    }
+		char *input_file = get_word(s->in);
+		int input_fd = open(input_file, O_RDONLY);
 
-	    if (dup2(input_fd, STDIN_FILENO) == -1) {
-	        perror("Failed to redirect standard input");
-	        close(input_fd);
-	        free(input_file);
-	        exit(EXIT_FAILURE);
-	    }
+		if (input_fd < 0) {
+			perror("Failed to open input file");
+			free(input_file);
+			free(verb);
+			exit(EXIT_FAILURE);
+		}
 
-	    close(input_fd);
-	    free(input_file);
+		if (dup2(input_fd, STDIN_FILENO) == -1) {
+			perror("Failed to redirect standard input");
+			close(input_fd);
+			free(input_file);
+			exit(EXIT_FAILURE);
+		}
+
+		close(input_fd);
+		free(input_file);
 	}
 
 	/* redirect at both STDOUT and STDERR */
@@ -231,19 +233,17 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		/* if same output file, open only once */
 		if (!strcmp(out, err)) {
 			redirect_both_stdio(s, verb);
-			
 		} else { /* else open each file separately */
 			redirect_stdio_to_file(s, verb, 1);
 			redirect_stdio_to_file(s, verb, 2);
 		}
-	} else { /* redirect only to STDOUT or STDERR */
-		if (s->out != NULL) {
-			redirect_stdio_to_file(s, verb, 1);
-		}
 
-		if (s->err != NULL) {
+	} else { /* redirect only to STDOUT or STDERR */
+		if (s->out)
+			redirect_stdio_to_file(s, verb, 1);
+
+		if (s->err)
 			redirect_stdio_to_file(s, verb, 2);
-		}
 	}
 
 	/* launch new process */
@@ -251,19 +251,18 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 		fprintf(stderr, "Execution failed for '%s'\n", verb);
 
 		free(verb);
-		for (size_t i = 0; i < argc; ++i) {
+		for (size_t i = 0; i < argc; ++i)
 			free(argv[i]);
-		}
+
 		free(argv);
 		exit(EXIT_FAILURE);
 	}
 
 	free(verb);
-	for (size_t i = 0; i < argc; ++i) {
+	for (size_t i = 0; i < argc; ++i)
 		free(argv[i]);
-	}
-	free(argv);
 
+	free(argv);
 	exit(EXIT_SUCCESS);
 }
 
@@ -282,16 +281,18 @@ static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 	} else if (pid_first_cmd == 0) {
 		/* Child process: exec first command */
 		int exit_status = parse_command(cmd1, level + 1, cmd1->up);
+
 		exit(exit_status);
 	}
 
 	int second_cmd_result = parse_command(cmd2, level + 1, father);
-
 	int status;
+
 	waitpid(pid_first_cmd, &status, 0); /* wait for the command to finish */
 
 	if (WIFEXITED(status)) {
 		int first_cmd_exit_status = WEXITSTATUS(status);
+
 		return first_cmd_exit_status & second_cmd_result;
 	}
 
@@ -314,7 +315,7 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 	}
 
 	/* create a process for the first command */
-	pid_t pid_first_cmd = fork(); 
+	pid_t pid_first_cmd = fork();
 
 	if (pid_first_cmd < 0) {
 		perror("error: can't create process; fork failed\n");
@@ -325,6 +326,7 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		close(pipe_fds[1]);
 
 		int exit_status = parse_command(cmd1, level + 1, cmd1->up);
+
 		exit(exit_status);
 	}
 
@@ -339,6 +341,7 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		close(pipe_fds[0]);
 
 		int exit_status = parse_command(cmd2, level + 1, cmd2->up);
+
 		exit(exit_status);
 	}
 
@@ -346,9 +349,10 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 	close(pipe_fds[1]);
 
 	int status;
+
 	waitpid(pid_second_cmd, &status, 0);
 
-	return (WIFEXITED(status) ? WEXITSTATUS(status) : false); 
+	return WIFEXITED(status) ? WEXITSTATUS(status) : false;
 }
 
 /**
@@ -358,14 +362,12 @@ int parse_command(command_t *c, int level, command_t *father)
 {
 	/* sanity checks */
 
-	if (c == NULL || level < 0) {
+	if (c == NULL || level < 0)
 		return SHELL_EXIT;
-	}
 
-	if (c->op == OP_NONE) {
-		/* Execute a simple command. */
+	/* Execute a simple command. */
+	if (c->op == OP_NONE)
 		return parse_simple(c->scmd, level + 1, c); /* Actual exit code of command. */
-	}
 
 	int res;
 
